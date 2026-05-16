@@ -1,0 +1,14 @@
+name = "akari"
+version = "0.1.0"
+defaultTargets = ["akari"]
+
+[[lean_lib]]
+name = "Akari"
+
+[[lean_exe]]
+name = "akari"
+root = "Main"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
