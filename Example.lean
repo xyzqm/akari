@@ -21,7 +21,7 @@ abbrev myPuzzle : Puzzle where
     else Cell.white
 
 /-- A proposed solution state: bulbs around the central black cell -/
-def mySolution : Finset myPuzzle.Pos := {⟨0, 1⟩, ⟨1, 0⟩, ⟨1, 2⟩, ⟨2, 1⟩}
+abbrev mySolution : Finset myPuzzle.Pos := {⟨0, 1⟩, ⟨1, 0⟩, ⟨1, 2⟩, ⟨2, 1⟩}
 
 /-- We want to prove this is a valid solution -/
 theorem solved_example : IsSolution myPuzzle mySolution := by
@@ -33,15 +33,17 @@ theorem solved_example : IsSolution myPuzzle mySolution := by
     <;> dsimp [Sees]
     <;> simp_all <;> decide
   · -- all_lit: Every white cell sees one of the 4 bulbs
-    dsimp [AllWhiteCellsLit, IsIlluminated, IsInBounds, myPuzzle, mySolution, Sees]
-    intro p ⟨hr, hc⟩ hwhite
-    omega
+    dsimp [AllWhiteCellsLit, IsIlluminated, Sees]
+    intro ⟨r, c⟩
+    fin_cases r <;> fin_cases c <;> decide
   · -- adj_correct: The black cell at (1,1) has exactly 4 adjacent bulbs
-    dsimp [AdjacencyCorrect, IsInBounds, myPuzzle, mySolution]
-    intro p ⟨hr, hc⟩
-    split
-    · -- This is the black cell at (1,1) with value 4
-      simp [Pos.mk]
-      decide
-    · decide
-    · decide
+    dsimp [AdjacencyCorrect, myPuzzle, mySolution, getNeighbors]
+    intro ⟨r, c⟩
+    fin_cases r <;> fin_cases c <;> simp_all
+    <;> split_ifs
+    <;> simp_all
+    <;> trivial
+
+#eval match Cell.black (some 2) with
+| Cell.black (some n) => 2 = n
+| _ => True
