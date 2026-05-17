@@ -1,6 +1,7 @@
 import Lean
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Fin.Basic
+import Mathlib.Data.Fintype.Prod
 import Mathlib.Order.Fin.Basic
 open Set
 
@@ -15,10 +16,10 @@ inductive Cell where
   deriving BEq, DecidableEq, Inhabited
 
 /-- Position on the grid. -/
-structure Pos (n m : Nat) where
-  r : Fin n
-  c : Fin m
-  deriving BEq, DecidableEq, Hashable
+def Pos (n m : Nat) := Fin n × Fin m deriving DecidableEq, Fintype
+
+def Pos.r (p : Pos n m) := p.1
+def Pos.c (p : Pos n m) := p.2
 
 /-- An Akari puzzle definition. -/
 structure Puzzle where
@@ -81,19 +82,19 @@ def getNeighbors (puz : Puzzle) (p : puz.Pos) : List puz.Pos :=
   -- Safely build each neighbor. If the condition is false, return an empty list [].
   -- `omega` automatically proves things like "if r < rows and r > 0, then r - 1 < rows".
   let up    := if h : r > 0
-               then [(⟨⟨r - 1, by omega⟩, p.c⟩ : puz.Pos)]
+               then [⟨⟨r - 1, by omega⟩, p.c⟩]
                else []
 
   let down  := if h : r + 1 < puz.rows
-               then [({ r := ⟨r + 1, h⟩, c := p.c } : puz.Pos)]
+               then [⟨⟨r + 1, h⟩, p.c⟩]
                else []
 
   let left  := if h : c > 0
-               then [({ r := p.r, c := ⟨c - 1, by omega⟩ } : puz.Pos)]
+               then [⟨p.r, ⟨c - 1, by omega⟩⟩]
                else []
 
   let right := if h : c + 1 < puz.cols
-               then [({ r := p.r, c := ⟨c + 1, h⟩ } : puz.Pos)]
+               then [⟨p.r, ⟨c + 1, h⟩⟩]
                else []
 
   -- Combine all valid neighbors into one list

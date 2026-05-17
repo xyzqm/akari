@@ -33,17 +33,9 @@ theorem solved_example : IsSolution myPuzzle mySolution := by
     <;> dsimp [Sees]
     <;> simp_all <;> decide
   · -- all_lit: Every white cell sees one of the 4 bulbs
-    dsimp [AllWhiteCellsLit, IsIlluminated, Sees]
-    intro ⟨r, c⟩
-    fin_cases r <;> fin_cases c <;> decide
+    intro p
+    dsimp [IsIlluminated, Sees]
+    fin_cases p <;> decide
   · -- adj_correct: The black cell at (1,1) has exactly 4 adjacent bulbs
-    dsimp [AdjacencyCorrect, myPuzzle, mySolution, getNeighbors]
-    intro ⟨r, c⟩
-    fin_cases r <;> fin_cases c <;> simp_all
-    <;> split_ifs
-    <;> simp_all
-    <;> trivial
-
-#eval match Cell.black (some 2) with
-| Cell.black (some n) => 2 = n
-| _ => True
+    intro p
+    fin_cases p <;> simp_all (config := { decide := true })
