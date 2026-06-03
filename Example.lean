@@ -48,3 +48,13 @@ theorem solved_example_tactics : IsSolution myPuzzle mySolution := by
   -- Every white cell that can see one of the 4 bulbs is marked empty automatically
   mark_lit_xs
   akari_done
+
+/-- Uniqueness: mySolution is the ONLY valid solution to myPuzzle. -/
+theorem myPuzzle_unique : ∀ sol, IsSolution myPuzzle sol → sol = mySolution := by
+  intro sol h
+  -- The #4 cell at ⟨1,1⟩ forces all 4 neighbors to be bulbs
+  forced_bulbs ⟨1, 1⟩
+  -- Every white cell that sees a bulb cannot also be a bulb
+  mark_conflict_xs
+  -- Close sol = mySolution using accumulated hbulb/hempty facts
+  uniqueness_done

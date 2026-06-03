@@ -140,6 +140,20 @@ def collectProofState (solExpr : Expr) : TacticM (Array Expr × Array Expr) := d
         empties := empties.push (← emptyPos hyp)
     return (bulbs, empties)
 
+/-! ## Helper: parseSolutionHyp -/
+
+/-- Find `(puz, sol, hName)` from the first `IsSolution puz sol` hypothesis in context.
+    Used by uniqueness tactics which work under `intro sol h` rather than from the goal. -/
+def parseSolutionHyp : TacticM (Expr × Expr × Name) := do
+  withMainContext do
+    let lctx ← getLCtx
+    for hyp in lctx do
+      let ty ← whnf hyp.type
+      let (fn, args) := ty.getAppFnArgs
+      if fn == ``Akari.IsSolution && args.size == 2 then
+        return (args[0]!, args[1]!, hyp.userName)
+    throwError "expected `IsSolution puz sol` hypothesis in local context"
+
 /-! ## Tactic: forced_lights -/
 
 /-- `forced_lights pos` — `pos` is a black #n cell with exactly n white adjacent cells.
@@ -309,6 +323,131 @@ syntax (name := mark_lit_xs) "mark_lit_xs" : tactic
           let pStx  : TSyntax `term ← `(⟨$rStx, $cStx⟩)
           let hName := mkIdent (← mkFreshBinderNameForTactic `hempty)
           evalTactic (← `(tactic| have $hName : $pStx ∉ $solStx := by native_decide))
+
+/-! ## Tactic: forced_bulbs -/
+
+/-- `forced_bulbs pos` — `pos` is a black #n cell with exactly n neighbors (all white).
+    Adds `hbulb_i : q ∈ sol` for each neighbor `q`, derived from `h : IsSolution puz sol`
+    via `IsSolution.forced_bulb`. For use in uniqueness proofs after `intro sol h`. -/
+syntax (name := forced_bulbs) "forced_bulbs " term : tactic
+
+@[tactic forced_bulbs] def evalForcedBulbs : Tactic := fun stx => do
+  match stx with
+  | `(tactic| forced_bulbs $posStx) => withMainContext do
+    let (puzExpr, solExpr, hName) ← parseSolutionHyp
+    -- Elaborate the black cell position
+    let posType ← mkAppM ``Akari.Puzzle.Pos #[puzExpr]
+    let posExpr ← Term.elabTermEnsuringType posStx posType
+    -- Evaluate getNeighbors puz pos to a concrete list
+    let neighborsExpr ← mkAppM ``Akari.getNeighbors #[puzExpr, posExpr]
+    let neighbors ← exprListElems neighborsExpr
+    -- Evaluate puz.cells pos; verify it is a numbered black cell.
+    let cellExpr ← withTransparency .all (reduce (← mkAppM ``Akari.Puzzle.cells #[puzExpr, posExpr]))
+    let (cellFn, cellArgs) := cellExpr.getAppFnArgs
+    unless cellFn == ``Akari.Cell.black do
+      throwError "forced_bulbs: cell at {posStx} is not a black cell"
+    -- Verify the number exists (Option.some, not none).
+    let optExpr ← withTransparency .all (whnf cellArgs[0]!)
+    let (optFn, _) := optExpr.getAppFnArgs
+    unless optFn == ``Option.some do
+      throwError "forced_bulbs: black cell at {posStx} has no number (unnumbered)"
+    -- Use neighbor count as n.  `by decide` in each emitted `have` will validate
+    -- that this matches the actual number on the cell and that each neighbor is white.
+    let n := neighbors.size
+    -- Syntax for h, sol, pos
+    let solStx  ← Lean.PrettyPrinter.delab solExpr
+    let hIdent  : TSyntax `term := mkIdent hName
+    let (pr, pc) ← posRowCol posExpr
+    let prStx : TSyntax `term := ⟨Syntax.mkNumLit (toString pr)⟩
+    let pcStx : TSyntax `term := ⟨Syntax.mkNumLit (toString pc)⟩
+    let posLitStx : TSyntax `term ← `(⟨$prStx, $pcStx⟩)
+    -- n as Fin 5 literal
+    let nStx : TSyntax `term := ⟨Syntax.mkNumLit (toString n)⟩
+    -- Add hbulb_i for each neighbor
+    for hd in neighbors do
+      let (r, c) ← posRowCol hd
+      let rStx : TSyntax `term := ⟨Syntax.mkNumLit (toString r)⟩
+      let cStx : TSyntax `term := ⟨Syntax.mkNumLit (toString c)⟩
+      let hdStx : TSyntax `term ← `(⟨$rStx, $cStx⟩)
+      let hName2 := mkIdent (← mkFreshBinderNameForTactic `hbulb)
+      evalTactic (← `(tactic|
+        have $hName2 : $hdStx ∈ $solStx :=
+          Akari.IsSolution.forced_bulb $hIdent $posLitStx ⟨$nStx, by decide⟩
+            (by decide) $hdStx (by decide) (by decide)))
+  | _ => throwUnsupportedSyntax
+
+/-! ## Tactic: mark_conflict_xs -/
+
+/-- `mark_conflict_xs` — for every white cell illuminated by a placed bulb (`hbulb_i`),
+    adds `hempty_j : cell ∉ sol` derived from `IsSolution.forced_empty_of_sees`.
+    For use in uniqueness proofs after `forced_bulbs`. -/
+syntax (name := mark_conflict_xs) "mark_conflict_xs" : tactic
+
+@[tactic mark_conflict_xs] def evalMarkConflictXs : Tactic := fun _stx => do
+  withMainContext do
+    let (puzExpr, solExpr, hName) ← parseSolutionHyp
+    let solStx ← Lean.PrettyPrinter.delab solExpr
+    let hIdent : TSyntax `term := mkIdent hName
+    -- Get puzzle dimensions
+    let rowsR ← withTransparency .all (reduce (← mkAppM ``Akari.Puzzle.rows #[puzExpr]))
+    let colsR ← withTransparency .all (reduce (← mkAppM ``Akari.Puzzle.cols #[puzExpr]))
+    let rows : Nat ← match rowsR with
+      | .lit (.natVal n) => pure n
+      | _ => throwError "mark_conflict_xs: could not evaluate puzzle rows"
+    let cols : Nat ← match colsR with
+      | .lit (.natVal n) => pure n
+      | _ => throwError "mark_conflict_xs: could not evaluate puzzle cols"
+    -- Collect current bulb positions as (Nat × Nat) pairs, keeping track of hyp names
+    let lctx ← getLCtx
+    let mut bulbsWithNames : Array (Nat × Nat × Name) := #[]
+    for hyp in lctx do
+      if ← isBulbHyp hyp solExpr then
+        let posE ← bulbPos hyp
+        let (br, bc) ← liftMetaM (posRowCol posE)
+        bulbsWithNames := bulbsWithNames.push (br, bc, hyp.userName)
+    let (_, emptyExprs) ← collectProofState solExpr
+    let empties ← emptyExprs.mapM (fun e => liftMetaM (posRowCol e))
+    -- Iterate over every white grid position
+    for r in List.range rows do
+      for c in List.range cols do
+        -- Skip already-determined cells
+        let alreadyBulb := bulbsWithNames.any (fun (br, bc, _) => br == r && bc == c)
+        if alreadyBulb || empties.contains (r, c) then continue
+        -- Check if any placed bulb illuminates this cell (works for white AND black cells:
+        -- NoBulbConflicts bans any two positions in sol from seeing each other)
+        let mut foundBulb : Option Name := none
+        for (br, bc, bHypName) in bulbsWithNames do
+          if ← checkSees2d puzExpr rows cols r c br bc then
+            foundBulb := some bHypName
+            break
+        if let some bHypName := foundBulb then
+          let rStx  : TSyntax `term := ⟨Syntax.mkNumLit (toString r)⟩
+          let cStx  : TSyntax `term := ⟨Syntax.mkNumLit (toString c)⟩
+          let pStx  : TSyntax `term ← `(⟨$rStx, $cStx⟩)
+          -- find the bulb's position for the lemma call
+          let bulbEntry := bulbsWithNames.find? (fun (_, _, n) => n == bHypName)
+          let (br, bc, _) := bulbEntry.get!
+          let brStx : TSyntax `term := ⟨Syntax.mkNumLit (toString br)⟩
+          let bcStx : TSyntax `term := ⟨Syntax.mkNumLit (toString bc)⟩
+          let bpStx : TSyntax `term ← `(⟨$brStx, $bcStx⟩)
+          let bHIdent : TSyntax `term := mkIdent bHypName
+          let heName := mkIdent (← mkFreshBinderNameForTactic `hempty)
+          evalTactic (← `(tactic|
+            have $heName : $pStx ∉ $solStx :=
+              Akari.IsSolution.forced_empty_of_sees $hIdent $pStx $bpStx $bHIdent
+                (by decide) (by decide)))
+
+/-! ## Tactic: uniqueness_done -/
+
+/-- `uniqueness_done` — closes `sol = mySolution` using accumulated `hbulb_i`/`hempty_j`
+    hypotheses via `Finset.ext` + `fin_cases` + `simp_all`. -/
+syntax (name := uniqueness_done) "uniqueness_done" : tactic
+
+@[tactic uniqueness_done] def evalUniquenessDone : Tactic := fun _stx => do
+  withMainContext do
+    evalTactic (← `(tactic| ext p))
+    evalTactic (← `(tactic| fin_cases p))
+    evalTactic (← `(tactic| all_goals simp_all (config := { decide := true })))
 
 /-! ## Tactic: akari_done -/
 

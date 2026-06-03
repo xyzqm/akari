@@ -116,4 +116,52 @@ structure IsSolution (puz : Puzzle) (st : Finset puz.Pos) : Prop where
   all_lit : AllWhiteCellsLit puz st
   adj_correct : AdjacencyCorrect puz st
 
+/-! # Decidability for Sees -/
+
+/-- `Sees puz p1 p2` is decidable for concrete puzzles. -/
+instance (puz : Puzzle) (p1 p2 : puz.Pos) : Decidable (Sees puz p1 p2) := by
+  unfold Sees
+  split_ifs with hr hc
+  · exact Fintype.decidableForallFintype
+  · exact Fintype.decidableForallFintype
+  · exact instDecidableFalse
+
+/-! # Uniqueness helper lemmas -/
+
+/-- If a #n black cell has exactly n neighbors (so every neighbor must be a bulb),
+    then every neighbor is in `sol`. -/
+theorem IsSolution.forced_bulb
+    {puz : Puzzle} {sol : Finset puz.Pos}
+    (h    : IsSolution puz sol)
+    (pos  : puz.Pos)
+    (n    : Fin 5)
+    (hcell  : puz.cells pos = Cell.black (some n))
+    (q      : puz.Pos)
+    (hq_mem : q ∈ getNeighbors puz pos)
+    (hlen   : (getNeighbors puz pos).length = n.val)
+    : q ∈ sol := by
+  have hadj := h.adj_correct pos
+  simp only [hcell] at hadj
+  -- Unify the two alpha-equivalent filter predicates so omega can use both.
+  have hadj' : (List.filter (· ∈ sol) (getNeighbors puz pos)).length = n.val := hadj
+  -- A sublist with the same length as the original must equal the original.
+  have hfull : List.filter (· ∈ sol) (getNeighbors puz pos) = getNeighbors puz pos :=
+    List.Sublist.eq_of_length_le List.filter_sublist (by omega)
+  -- q is in the filter because the filter equals the original list.
+  have hq_in_filter : q ∈ List.filter (· ∈ sol) (getNeighbors puz pos) := by
+    rw [hfull]; exact hq_mem
+  -- List.mem_filter gives: q ∈ l ∧ decide (q ∈ sol) = true
+  exact of_decide_eq_true (List.mem_filter.mp hq_in_filter).2
+
+/-- If `q ∈ sol` and `p` sees `q`, then `p ∉ sol`. -/
+theorem IsSolution.forced_empty_of_sees
+    {puz : Puzzle} {sol : Finset puz.Pos}
+    (h   : IsSolution puz sol)
+    (p q : puz.Pos)
+    (hq  : q ∈ sol)
+    (hpq : Sees puz p q)
+    (hne : p ≠ q)
+    : p ∉ sol := fun hp =>
+  h.no_conflicts p q hne hp hq hpq
+
 end Akari
