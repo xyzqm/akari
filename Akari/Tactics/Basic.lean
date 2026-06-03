@@ -10,9 +10,11 @@ namespace Akari.Tactics
 /-! # Akari Proof Tactics
 
 Tactics accumulate membership facts as local hypotheses:
-- `forced_lights pos` adds `hbulb_i : q ∈ sol` for each neighbor q of black cell pos
-- `forced_xs pos`    adds `hempty_j : q ∉ sol` for unsatisfied neighbors of black cell pos
-- `suffocated pos`   closes a `False` goal when black cell pos can't be satisfied
+- `forced_xs pos`    adds `hempty_j : q ∉ sol` for a cell pos
+- `suffocated pos`   closes a `False` goal when a black cell can't be satisfied
+- `forced_bulbs pos` adds `hbulb_i : q ∈ sol` for each forced neighbor (uniqueness)
+- `mark_conflict_xs` adds `hempty_j : q ∉ sol` for cells seen by placed bulbs (uniqueness)
+- `uniqueness_done`  closes `sol = mySolution` from accumulated hbulb/hempty hypotheses
 - `akari_done`       verifies complete coverage then closes `IsSolution puz sol`
 
 The goal stays `IsSolution puz sol` throughout; `puz` and `sol` are extracted
@@ -154,40 +156,6 @@ def parseSolutionHyp : TacticM (Expr × Expr × Name) := do
         return (args[0]!, args[1]!, hyp.userName)
     throwError "expected `IsSolution puz sol` hypothesis in local context"
 
-/-! ## Tactic: forced_lights -/
-
-/-- `forced_lights pos` — `pos` is a black #n cell with exactly n white adjacent cells.
-    Adds `hbulb_i : q ∈ sol` for each neighbor `q` via `native_decide`. -/
-syntax (name := forced_lights) "forced_lights " term : tactic
-
-@[tactic forced_lights] def evalForcedLights : Tactic := fun stx => do
-  match stx with
-  | `(tactic| forced_lights $posStx) => withMainContext do
-    let target  ← getMainTarget
-    let (puzExpr, solExpr) ← parseSolutionGoal target
-    -- Elaborate the black cell position
-    let posType ← mkAppM ``Akari.Puzzle.Pos #[puzExpr]
-    let posExpr ← Term.elabTermEnsuringType posStx posType
-    -- Evaluate getNeighbors puz pos to a concrete list via kernel reduction
-    let neighborsExpr ← mkAppM ``Akari.getNeighbors #[puzExpr, posExpr]
-    let neighbors ← exprListElems neighborsExpr
-    -- Also need sol as syntax for the `have` tactic
-    let solStx ← Lean.PrettyPrinter.delab solExpr
-    -- Add `hbulb : ⟨r, c⟩ ∈ sol` for each white neighbor, using numeric literals
-    for hd in neighbors do
-      let cell ← whnf (← mkAppM ``Akari.Puzzle.cells #[puzExpr, hd])
-      let isWhite := match cell with
-        | .const n _ => n == ``Akari.Cell.white
-        | _          => false
-      if isWhite then
-        let (r, c) ← posRowCol hd
-        let rStx   : TSyntax `term := ⟨Syntax.mkNumLit (toString r)⟩
-        let cStx   : TSyntax `term := ⟨Syntax.mkNumLit (toString c)⟩
-        let hdStx  : TSyntax `term ← `(⟨$rStx, $cStx⟩)
-        let hName  := mkIdent (← mkFreshBinderNameForTactic `hbulb)
-        evalTactic (← `(tactic| have $hName : $hdStx ∈ $solStx := by native_decide))
-  | _ => throwUnsupportedSyntax
-
 /-! ## Tactic: forced_xs -/
 
 /-- `forced_xs pos` — marks `pos` as forced empty (must not contain a bulb).
@@ -233,7 +201,7 @@ syntax (name := suffocated) "suffocated " term : tactic
     -- given the concrete puzzle. We close False directly.
     evalTactic (← `(tactic| native_decide))
 
-/-! ## Tactic: mark_lit_xs -/
+/-! ## Helper: grid utilities -/
 
 /-- Build a concrete `Fin n` expression with value `val`, proving `val < n` by `native_decide`. -/
 def mkConcreteFin (n val : Nat) : TacticM Expr := do
@@ -279,50 +247,6 @@ def checkSees2d (puzExpr : Expr) (rows cols r1 c1 r2 c2 : Nat) : TacticM Bool :=
     return true
   else
     return false
-
-/-- `mark_lit_xs` — for every white cell currently illuminated by a placed bulb (`hbulb_i`),
-    adds `hempty : cell ∉ sol` via `native_decide`.
-    Call after `forced_lights` to mark conflict-blocked cells. -/
-syntax (name := mark_lit_xs) "mark_lit_xs" : tactic
-
-@[tactic mark_lit_xs] def evalMarkLitXs : Tactic := fun _stx => do
-  withMainContext do
-    let target ← getMainTarget
-    let (puzExpr, solExpr) ← parseSolutionGoal target
-    let solStx ← Lean.PrettyPrinter.delab solExpr
-    -- Get puzzle dimensions
-    let rowsR ← withTransparency .all (reduce (← mkAppM ``Akari.Puzzle.rows #[puzExpr]))
-    let colsR ← withTransparency .all (reduce (← mkAppM ``Akari.Puzzle.cols #[puzExpr]))
-    let rows : Nat ← match rowsR with
-      | .lit (.natVal n) => pure n
-      | _ => throwError "mark_lit_xs: could not evaluate puzzle rows"
-    let cols : Nat ← match colsR with
-      | .lit (.natVal n) => pure n
-      | _ => throwError "mark_lit_xs: could not evaluate puzzle cols"
-    -- Collect current bulb and empty positions as (Nat × Nat) pairs
-    let (bulbExprs, emptyExprs) ← collectProofState solExpr
-    let bulbs   ← bulbExprs.mapM  (fun e => liftMetaM (posRowCol e))
-    let empties ← emptyExprs.mapM (fun e => liftMetaM (posRowCol e))
-    -- Iterate over every grid position
-    for r in List.range rows do
-      for c in List.range cols do
-        -- Skip already-determined cells
-        if bulbs.contains (r, c) || empties.contains (r, c) then continue
-        -- Skip black cells
-        let posExpr ← mkConcretePos rows cols r c
-        if !(← isCellWhite puzExpr posExpr) then continue
-        -- Check if any placed bulb illuminates this cell
-        let mut lit := false
-        for (br, bc) in bulbs do
-          if ← checkSees2d puzExpr rows cols r c br bc then
-            lit := true
-            break
-        if lit then
-          let rStx  : TSyntax `term := ⟨Syntax.mkNumLit (toString r)⟩
-          let cStx  : TSyntax `term := ⟨Syntax.mkNumLit (toString c)⟩
-          let pStx  : TSyntax `term ← `(⟨$rStx, $cStx⟩)
-          let hName := mkIdent (← mkFreshBinderNameForTactic `hempty)
-          evalTactic (← `(tactic| have $hName : $pStx ∉ $solStx := by native_decide))
 
 /-! ## Tactic: forced_bulbs -/
 

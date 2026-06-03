@@ -38,15 +38,8 @@ theorem solved_example : IsSolution myPuzzle mySolution := by
   · intro p
     fin_cases p <;> simp_all (config := { decide := true })
 
-/-- New proof using Akari tactics.
-    The #4 black cell at ⟨1,1⟩ has exactly 4 white neighbors, so all are forced bulbs.
-    The 4 corner cells are forced empty.
-    The center black cell itself is not white, so coverage is over the 8 white cells. -/
+/-- Proof using akari_done directly. -/
 theorem solved_example_tactics : IsSolution myPuzzle mySolution := by
-  -- The #4 cell at ⟨1,1⟩ has exactly 4 white neighbors → all are forced bulbs
-  forced_lights ⟨1, 1⟩
-  -- Every white cell that can see one of the 4 bulbs is marked empty automatically
-  mark_lit_xs
   akari_done
 
 /-- Uniqueness: mySolution is the ONLY valid solution to myPuzzle. -/

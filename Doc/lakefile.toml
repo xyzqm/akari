@@ -1,0 +1,20 @@
+name = "AkariDoc"
+version = "0.1.0"
+defaultTargets = ["AkariDoc", "generate-doc"]
+packagesDir = "../.lake/packages"
+
+[[require]]
+name = "verso"
+git = "https://github.com/leanprover/verso"
+rev = "v4.30.0-rc2"
+
+[[require]]
+name = "akari"
+path = ".."
+
+[[lean_lib]]
+name = "AkariDoc"
+
+[[lean_exe]]
+name = "generate-doc"
+root = "Main"
