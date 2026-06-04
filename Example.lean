@@ -1,5 +1,6 @@
 import Akari
 import Akari.Tactics.Basic
+import Akari.Widget
 import Mathlib.Tactic
 open Akari Akari.Tactics
 
@@ -50,4 +51,14 @@ theorem myPuzzle_unique : ∀ sol, IsSolution myPuzzle sol → sol = mySolution 
   -- Every white cell that sees a bulb cannot also be a bulb
   mark_conflict_xs
   -- Close sol = mySolution using accumulated hbulb/hempty facts
+  uniqueness_done
+
+set_option linter.unusedTactic false in
+/-- Visual walkthrough: place the cursor on each `show_puzzle` line to see the
+    grid at that proof step.  Or use `with_panel_widgets [AkariPanelWidget]`
+    once for an auto-updating view that follows the cursor. -/
+theorem myPuzzle_unique_visual : ∀ sol, IsSolution myPuzzle sol → sol = mySolution := by with_panel_widgets [AkariPanelWidget]
+  intro sol h
+  forced_bulbs ⟨1, 1⟩
+  mark_conflict_xs
   uniqueness_done
