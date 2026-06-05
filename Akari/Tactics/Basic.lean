@@ -364,14 +364,62 @@ syntax (name := mark_conflict_xs) "mark_conflict_xs" : tactic
 /-! ## Tactic: uniqueness_done -/
 
 /-- `uniqueness_done` — closes `sol = mySolution` using accumulated `hbulb_i`/`hempty_j`
-    hypotheses via `Finset.ext` + `fin_cases` + `simp_all`. -/
+    hypotheses. Works for **any** representation of `mySolution` (filter, explicit set
+    literal, etc.), not just nice `univ.filter` predicates.
+
+    Strategy:
+    1. From the `hbulb`/`hempty` hypotheses (which determine `sol` completely), synthesize
+       a 2D boolean lookup table `tbl` with `tbl[r][c] = true` iff `⟨r,c⟩` is a bulb.
+    2. Prove the **bridge** `∀ q, q ∈ mySolution ↔ tbl[q.1][q.2] = true` with a *single*
+       `native_decide`. This is the only place `mySolution`'s representation is evaluated,
+       and it happens once, in compiled code — so even a 225-element set literal (whose
+       per-cell kernel `decide` would blow `maxRecDepth`) is handled cheaply.
+    3. `ext p; fin_cases p`, rewrite each goal's `∈ mySolution` via the bridge, then close
+       flatly: `assumption` for the `∈ sol` side, and a shallow `decide` on the table
+       lookup (depth ≤ grid dimension, not the whole grid) for the membership side. -/
 syntax (name := uniqueness_done) "uniqueness_done" : tactic
 
 @[tactic uniqueness_done] def evalUniquenessDone : Tactic := fun _stx => do
   withMainContext do
+    -- Parse goal `sol = mySolution`; grab the `mySolution` expression.
+    let target ← whnf (← getMainTarget)
+    let (eqFn, eqArgs) := target.getAppFnArgs
+    unless eqFn == ``Eq && eqArgs.size == 3 do
+      throwError "uniqueness_done: expected goal `sol = mySolution`, got {target}"
+    let mySolExpr := eqArgs[2]!
+    let mySolStx ← Lean.PrettyPrinter.delab mySolExpr
+    -- Puzzle dimensions (from the `IsSolution puz sol` hypothesis).
+    let (puzExpr, solExpr, _) ← parseSolutionHyp
+    let evalNat (e : Expr) : TacticM Nat := do
+      match ← withTransparency .all (reduce e) with
+      | .lit (.natVal n) => pure n
+      | bad => throwError "uniqueness_done: could not evaluate {bad} to a Nat"
+    let rows ← evalNat (← mkAppM ``Akari.Puzzle.rows #[puzExpr])
+    let cols ← evalNat (← mkAppM ``Akari.Puzzle.cols #[puzExpr])
+    -- Collect the bulb cells from the local context.
+    let mut bulbSet : Array (Nat × Nat) := #[]
+    for hyp in ← getLCtx do
+      if ← isBulbHyp hyp solExpr then
+        bulbSet := bulbSet.push (← liftMetaM (posRowCol (← bulbPos hyp)))
+    -- Build the 2D boolean table syntax `#[#[…], …]` (row-major, `true` = bulb).
+    let mut rowSyns : Array (TSyntax `term) := #[]
+    for r in [:rows] do
+      let mut cellSyns : Array (TSyntax `term) := #[]
+      for c in [:cols] do
+        cellSyns := cellSyns.push (← if bulbSet.contains (r, c) then `(true) else `(false))
+      rowSyns := rowSyns.push (← `(#[$cellSyns,*]))
+    let tableSyn ← `(#[$rowSyns,*])
+    -- Bridge lemma proven by a single `native_decide`.
+    let hb := mkIdent (← mkFreshBinderNameForTactic `hbridge)
+    evalTactic (← `(tactic|
+      have $hb : ∀ q, q ∈ $mySolStx ↔
+          (($tableSyn : Array (Array Bool))[q.1.val]!)[q.2.val]! = true := by native_decide))
+    -- Close: rewrite the membership side via the bridge, then flat per-cell discharge.
     evalTactic (← `(tactic| ext p))
-    evalTactic (← `(tactic| fin_cases p))
-    evalTactic (← `(tactic| all_goals simp_all (config := { decide := true })))
+    evalTactic (← `(tactic| fin_cases p <;> simp only [$hb:ident] <;>
+      (first
+        | exact iff_of_true (by assumption) (by decide)
+        | exact iff_of_false (by assumption) (by decide))))
 
 /-! ## Tactic: akari_done -/
 

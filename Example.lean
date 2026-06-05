@@ -62,3 +62,36 @@ theorem myPuzzle_unique_visual : ∀ sol, IsSolution myPuzzle sol → sol = mySo
   forced_bulbs ⟨1, 1⟩
   mark_conflict_xs
   uniqueness_done
+
+/-!
+## 9×9 Puzzle (efficiency test)
+
+Same checkerboard design scaled up:
+  • `r%2 == 1 && c%2 == 1` → black #4 (16 centers)
+  • `r%2 == 0 && c%2 == 0` → black unnumbered (25 corner separators)
+  • otherwise              → white (40 forced bulbs)
+
+16 `forced_bulbs` calls + `mark_conflict_xs` determine all 81 cells.
+See `Example15.lean` for the same design at 15×15 (needs higher heartbeats).
+-/
+
+abbrev bigPuzzle : Puzzle where
+  rows := 9
+  cols := 9
+  cells p :=
+    if p.1.val % 2 == 1 && p.2.val % 2 == 1 then Cell.black (some 4)
+    else if p.1.val % 2 == 0 && p.2.val % 2 == 0 then Cell.black none
+    else Cell.white
+
+abbrev bigSolution : Finset bigPuzzle.Pos :=
+  Finset.univ.filter fun p => p.1.val % 2 ≠ p.2.val % 2
+
+set_option linter.unusedTactic false in
+theorem bigPuzzle_unique_visual : ∀ sol, IsSolution bigPuzzle sol → sol = bigSolution := by with_panel_widgets [AkariPanelWidget]
+  intro sol h
+  forced_bulbs ⟨1,1⟩; forced_bulbs ⟨1,3⟩; forced_bulbs ⟨1,5⟩; forced_bulbs ⟨1,7⟩
+  forced_bulbs ⟨3,1⟩; forced_bulbs ⟨3,3⟩; forced_bulbs ⟨3,5⟩; forced_bulbs ⟨3,7⟩
+  forced_bulbs ⟨5,1⟩; forced_bulbs ⟨5,3⟩; forced_bulbs ⟨5,5⟩; forced_bulbs ⟨5,7⟩
+  forced_bulbs ⟨7,1⟩; forced_bulbs ⟨7,3⟩; forced_bulbs ⟨7,5⟩; forced_bulbs ⟨7,7⟩
+  mark_conflict_xs
+  uniqueness_done
