@@ -44,26 +44,16 @@ abbrev puzzle9x9 : Puzzle where
 abbrev solution9x9 : Finset puzzle9x9.Pos :=
   {⟨0,4⟩, ⟨1,3⟩, ⟨2,5⟩, ⟨3,2⟩, ⟨4,6⟩, ⟨5,1⟩, ⟨6,7⟩, ⟨7,0⟩, ⟨7,8⟩, ⟨8,7⟩}
 
-set_option linter.unusedTactic false in
-set_option linter.unusedVariables false in
-/-- View-only: place the cursor on the last `have` to see the full solved grid
-    in the infoview. This proves nothing about `puzzle9x9` — `h` is an assumed
-    hypothesis used only so the `AkariPanelWidget` can locate the puzzle and
-    solution; the `have`s simply assert each solution bulb so the grid renders. -/
-example (h : IsSolution puzzle9x9 solution9x9) : True := by
-  with_panel_widgets [AkariPanelWidget]
-    have hbulb_0 : (⟨0,4⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_1 : (⟨1,3⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_2 : (⟨2,5⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_3 : (⟨3,2⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_4 : (⟨4,6⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_5 : (⟨5,1⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_6 : (⟨6,7⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_7 : (⟨7,0⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_8 : (⟨7,8⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    have hbulb_9 : (⟨8,7⟩ : puzzle9x9.Pos) ∈ solution9x9 := by decide
-    trivial
-
+-- Profiling: uncomment the two `set_option`s below (and temporarily drop the
+-- `with_panel_widgets` wrapper, which otherwise collapses the whole block into a
+-- single profiler step) to see per-tactic wall-clock times. Last measured (~8.4s):
+--   uniqueness_done .......... 5.22s   (kernel `decide` bridge + fin_cases over 81)
+--   8× forced_bulbs chain .... ~2.34s  (0.44s → 0.13s, shrinking as cells get X'd)
+--   forced_lit ⟨0,4⟩ ......... 0.26s
+-- Note: `#count_heartbeats in` reports only ~18 here — heartbeats don't bill the
+-- native_decide / kernel `decide` work that dominates; trace.profiler does.
+-- set_option trace.profiler true in
+-- set_option trace.profiler.threshold 30 in
 set_option linter.unusedTactic false in
 theorem puzzle9x9_unique : ∀ sol, IsSolution puzzle9x9 sol → sol = solution9x9 := by with_panel_widgets [AkariPanelWidget]
   intro sol h
@@ -78,8 +68,5 @@ theorem puzzle9x9_unique : ∀ sol, IsSolution puzzle9x9 sol → sol = solution9
   forced_bulbs ⟨4, 2⟩   -- #1: (5,2),(4,1) by (5,1); (4,3) by (4,6) → bulb (3,2)
   forced_bulbs ⟨3, 5⟩   -- #1: (4,5),(3,6) by (4,6); (3,4) by (3,2) → bulb (2,5)
   forced_bulbs ⟨2, 3⟩   -- #1: (3,3),(2,2) by (3,2); (2,4) by (2,5) → bulb (1,3)
-  -- 9 of 10 bulbs placed. The last bulb (0,4) touches no numbered cell: every
-  -- cell it sees (all of row 0 and column 4) is now X'd, so the only way (0,4)
-  -- can be illuminated is to be a bulb itself — the "lighting" deduction.
   forced_lit ⟨0, 4⟩
   uniqueness_done
