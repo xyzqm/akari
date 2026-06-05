@@ -47,7 +47,7 @@ theorem solved_example_tactics : IsSolution myPuzzle mySolution := by
 theorem myPuzzle_unique : ∀ sol, IsSolution myPuzzle sol → sol = mySolution := by
   intro sol h
   -- The #4 cell at ⟨1,1⟩ forces all 4 neighbors to be bulbs
-  forced_bulbs ⟨1, 1⟩
+  forced_bulbs_only ⟨1, 1⟩
   -- Every white cell that sees a bulb cannot also be a bulb
   mark_conflict_xs
   -- Close sol = mySolution using accumulated hbulb/hempty facts
@@ -59,7 +59,7 @@ set_option linter.unusedTactic false in
     once for an auto-updating view that follows the cursor. -/
 theorem myPuzzle_unique_visual : ∀ sol, IsSolution myPuzzle sol → sol = mySolution := by with_panel_widgets [AkariPanelWidget]
   intro sol h
-  forced_bulbs ⟨1, 1⟩
+  forced_bulbs_only ⟨1, 1⟩
   mark_conflict_xs
   uniqueness_done
 
@@ -89,9 +89,9 @@ abbrev bigSolution : Finset bigPuzzle.Pos :=
 set_option linter.unusedTactic false in
 theorem bigPuzzle_unique_visual : ∀ sol, IsSolution bigPuzzle sol → sol = bigSolution := by with_panel_widgets [AkariPanelWidget]
   intro sol h
-  forced_bulbs ⟨1,1⟩; forced_bulbs ⟨1,3⟩; forced_bulbs ⟨1,5⟩; forced_bulbs ⟨1,7⟩
-  forced_bulbs ⟨3,1⟩; forced_bulbs ⟨3,3⟩; forced_bulbs ⟨3,5⟩; forced_bulbs ⟨3,7⟩
-  forced_bulbs ⟨5,1⟩; forced_bulbs ⟨5,3⟩; forced_bulbs ⟨5,5⟩; forced_bulbs ⟨5,7⟩
-  forced_bulbs ⟨7,1⟩; forced_bulbs ⟨7,3⟩; forced_bulbs ⟨7,5⟩; forced_bulbs ⟨7,7⟩
+  forced_bulbs_only ⟨1,1⟩; forced_bulbs_only ⟨1,3⟩; forced_bulbs_only ⟨1,5⟩; forced_bulbs_only ⟨1,7⟩
+  forced_bulbs_only ⟨3,1⟩; forced_bulbs_only ⟨3,3⟩; forced_bulbs_only ⟨3,5⟩; forced_bulbs_only ⟨3,7⟩
+  forced_bulbs_only ⟨5,1⟩; forced_bulbs_only ⟨5,3⟩; forced_bulbs_only ⟨5,5⟩; forced_bulbs_only ⟨5,7⟩
+  forced_bulbs_only ⟨7,1⟩; forced_bulbs_only ⟨7,3⟩; forced_bulbs_only ⟨7,5⟩; forced_bulbs_only ⟨7,7⟩
   mark_conflict_xs
   uniqueness_done

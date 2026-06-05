@@ -153,6 +153,44 @@ theorem IsSolution.forced_bulb
   -- List.mem_filter gives: q ∈ l ∧ decide (q ∈ sol) = true
   exact of_decide_eq_true (List.mem_filter.mp hq_in_filter).2
 
+/-- Empty-aware generalisation of `forced_bulb`: if some neighbors of a #n black
+    cell are already known to be empty (`∉ sol`), and the remaining *free*
+    neighbors number exactly `n`, then every free neighbor is a bulb. -/
+theorem IsSolution.forced_bulb_filter
+    {puz : Puzzle} {sol : Finset puz.Pos}
+    (h    : IsSolution puz sol)
+    (pos  : puz.Pos)
+    (n    : Fin 5)
+    (hcell    : puz.cells pos = Cell.black (some n))
+    (empties  : List puz.Pos)
+    (hempties : ∀ e ∈ empties, e ∉ sol)
+    (hlen     : ((getNeighbors puz pos).filter (· ∉ empties)).length = n.val)
+    (q        : puz.Pos)
+    (hq_mem   : q ∈ getNeighbors puz pos)
+    (hq_free  : q ∉ empties)
+    : q ∈ sol := by
+  have hadj := h.adj_correct pos
+  simp only [hcell] at hadj
+  have hadj' : (List.filter (· ∈ sol) (getNeighbors puz pos)).length = n.val := hadj
+  -- Every in-`sol` neighbor is non-empty, so `filter (· ∈ sol)` is a sublist of
+  -- `filter (· ∉ empties)`.
+  have himp : ∀ a : puz.Pos, (decide (a ∈ sol) = true) → (decide (a ∉ empties) = true) := by
+    intro a ha
+    have ha' : a ∈ sol := of_decide_eq_true ha
+    have hne : a ∉ empties := fun hae => (hempties a hae) ha'
+    simpa using hne
+  have hsub : List.Sublist (List.filter (· ∈ sol) (getNeighbors puz pos))
+                           (List.filter (· ∉ empties) (getNeighbors puz pos)) :=
+    List.monotone_filter_right _ himp
+  -- Equal lengths (`= n.val`) force the two filters to be equal lists.
+  have heq : List.filter (· ∈ sol) (getNeighbors puz pos)
+           = List.filter (· ∉ empties) (getNeighbors puz pos) :=
+    hsub.eq_of_length (by rw [hadj', hlen])
+  have hq_in : q ∈ List.filter (· ∉ empties) (getNeighbors puz pos) :=
+    List.mem_filter.mpr ⟨hq_mem, by simpa using hq_free⟩
+  rw [← heq] at hq_in
+  exact of_decide_eq_true (List.mem_filter.mp hq_in).2
+
 /-- If `q ∈ sol` and `p` sees `q`, then `p ∉ sol`. -/
 theorem IsSolution.forced_empty_of_sees
     {puz : Puzzle} {sol : Finset puz.Pos}
@@ -163,5 +201,25 @@ theorem IsSolution.forced_empty_of_sees
     (hne : p ≠ q)
     : p ∉ sol := fun hp =>
   h.no_conflicts p q hne hp hq hpq
+
+/-- Lighting deduction: a white cell `q` must be illuminated, so it sees *some*
+    bulb. If every cell `q` can see — other than `q` itself — is known empty
+    (`∉ sol`), then the bulb lighting `q` can only be `q`, hence `q ∈ sol`.
+
+    `visible` is the list of cells `q` sees apart from itself; `hvis` says it is
+    exhaustive (anything `q` sees is `q` or in `visible`). -/
+theorem IsSolution.forced_lit
+    {puz : Puzzle} {sol : Finset puz.Pos}
+    (h       : IsSolution puz sol)
+    (q       : puz.Pos)
+    (hwhite  : puz.cells q = Cell.white)
+    (visible : List puz.Pos)
+    (hvis    : ∀ v, Sees puz q v → v = q ∨ v ∈ visible)
+    (hempty  : ∀ v ∈ visible, v ∉ sol)
+    : q ∈ sol := by
+  obtain ⟨b, hb_mem, hb_sees⟩ := h.all_lit q hwhite
+  rcases hvis b hb_sees with hbq | hbvis
+  · exact hbq ▸ hb_mem
+  · exact absurd hb_mem (hempty b hbvis)
 
 end Akari

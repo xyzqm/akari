@@ -38,12 +38,12 @@ set_option linter.unusedTactic false in
 set_option maxHeartbeats 1000000 in
 theorem bigPuzzle_unique_visual : ∀ sol, IsSolution bigPuzzle sol → sol = bigSolution := by with_panel_widgets [AkariPanelWidget]
   intro sol h
-  forced_bulbs ⟨1,1⟩; forced_bulbs ⟨1,3⟩; forced_bulbs ⟨1,5⟩; forced_bulbs ⟨1,7⟩; forced_bulbs ⟨1,9⟩; forced_bulbs ⟨1,11⟩; forced_bulbs ⟨1,13⟩
-  forced_bulbs ⟨3,1⟩; forced_bulbs ⟨3,3⟩; forced_bulbs ⟨3,5⟩; forced_bulbs ⟨3,7⟩; forced_bulbs ⟨3,9⟩; forced_bulbs ⟨3,11⟩; forced_bulbs ⟨3,13⟩
-  forced_bulbs ⟨5,1⟩; forced_bulbs ⟨5,3⟩; forced_bulbs ⟨5,5⟩; forced_bulbs ⟨5,7⟩; forced_bulbs ⟨5,9⟩; forced_bulbs ⟨5,11⟩; forced_bulbs ⟨5,13⟩
-  forced_bulbs ⟨7,1⟩; forced_bulbs ⟨7,3⟩; forced_bulbs ⟨7,5⟩; forced_bulbs ⟨7,7⟩; forced_bulbs ⟨7,9⟩; forced_bulbs ⟨7,11⟩; forced_bulbs ⟨7,13⟩
-  forced_bulbs ⟨9,1⟩; forced_bulbs ⟨9,3⟩; forced_bulbs ⟨9,5⟩; forced_bulbs ⟨9,7⟩; forced_bulbs ⟨9,9⟩; forced_bulbs ⟨9,11⟩; forced_bulbs ⟨9,13⟩
-  forced_bulbs ⟨11,1⟩; forced_bulbs ⟨11,3⟩; forced_bulbs ⟨11,5⟩; forced_bulbs ⟨11,7⟩; forced_bulbs ⟨11,9⟩; forced_bulbs ⟨11,11⟩; forced_bulbs ⟨11,13⟩
-  forced_bulbs ⟨13,1⟩; forced_bulbs ⟨13,3⟩; forced_bulbs ⟨13,5⟩; forced_bulbs ⟨13,7⟩; forced_bulbs ⟨13,9⟩; forced_bulbs ⟨13,11⟩; forced_bulbs ⟨13,13⟩
+  forced_bulbs_only ⟨1,1⟩; forced_bulbs_only ⟨1,3⟩; forced_bulbs_only ⟨1,5⟩; forced_bulbs_only ⟨1,7⟩; forced_bulbs_only ⟨1,9⟩; forced_bulbs_only ⟨1,11⟩; forced_bulbs_only ⟨1,13⟩
+  forced_bulbs_only ⟨3,1⟩; forced_bulbs_only ⟨3,3⟩; forced_bulbs_only ⟨3,5⟩; forced_bulbs_only ⟨3,7⟩; forced_bulbs_only ⟨3,9⟩; forced_bulbs_only ⟨3,11⟩; forced_bulbs_only ⟨3,13⟩
+  forced_bulbs_only ⟨5,1⟩; forced_bulbs_only ⟨5,3⟩; forced_bulbs_only ⟨5,5⟩; forced_bulbs_only ⟨5,7⟩; forced_bulbs_only ⟨5,9⟩; forced_bulbs_only ⟨5,11⟩; forced_bulbs_only ⟨5,13⟩
+  forced_bulbs_only ⟨7,1⟩; forced_bulbs_only ⟨7,3⟩; forced_bulbs_only ⟨7,5⟩; forced_bulbs_only ⟨7,7⟩; forced_bulbs_only ⟨7,9⟩; forced_bulbs_only ⟨7,11⟩; forced_bulbs_only ⟨7,13⟩
+  forced_bulbs_only ⟨9,1⟩; forced_bulbs_only ⟨9,3⟩; forced_bulbs_only ⟨9,5⟩; forced_bulbs_only ⟨9,7⟩; forced_bulbs_only ⟨9,9⟩; forced_bulbs_only ⟨9,11⟩; forced_bulbs_only ⟨9,13⟩
+  forced_bulbs_only ⟨11,1⟩; forced_bulbs_only ⟨11,3⟩; forced_bulbs_only ⟨11,5⟩; forced_bulbs_only ⟨11,7⟩; forced_bulbs_only ⟨11,9⟩; forced_bulbs_only ⟨11,11⟩; forced_bulbs_only ⟨11,13⟩
+  forced_bulbs_only ⟨13,1⟩; forced_bulbs_only ⟨13,3⟩; forced_bulbs_only ⟨13,5⟩; forced_bulbs_only ⟨13,7⟩; forced_bulbs_only ⟨13,9⟩; forced_bulbs_only ⟨13,11⟩; forced_bulbs_only ⟨13,13⟩
   mark_conflict_xs
   uniqueness_done
